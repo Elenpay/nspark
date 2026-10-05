@@ -6,13 +6,21 @@
     are not yet set when Directory.Build.props runs.
   -->
 
+  <PropertyGroup Label="Strict builds only for NSpark itself">
+    <!-- When NSpark is built as a dependency of another repository (a git submodule
+         ProjectReference), the build starts outside this directory: a newer SDK's analyzer
+         warnings must not break the consumer's build. NSpark's own CI and local builds start
+         inside it and stay strict. Override with -p:NSparkStrictBuild=true|false. -->
+    <NSparkStrictBuild Condition="'$(NSparkStrictBuild)' == '' and $([MSBuild]::EnsureTrailingSlash('$(MSBuildStartupDirectory)').StartsWith('$(MSBuildThisFileDirectory)'))">true</NSparkStrictBuild>
+  </PropertyGroup>
+
   <PropertyGroup Label="Warnings as errors gate">
     <!-- Treat warnings as errors only for shipping packages. Test, sample,
          and benchmark projects (IsPackable=false) get a looser ride so the
          shape of test code doesn't have to mirror library conventions
          (ConfigureAwait, CA1062, etc.). -->
-    <TreatWarningsAsErrors Condition="'$(Configuration)' == 'Release' and '$(IsPackable)' != 'false'">true</TreatWarningsAsErrors>
-    <TreatWarningsAsErrors Condition="'$(ContinuousIntegrationBuild)' == 'true' and '$(IsPackable)' != 'false'">true</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors Condition="'$(NSparkStrictBuild)' == 'true' and '$(Configuration)' == 'Release' and '$(IsPackable)' != 'false'">true</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors Condition="'$(NSparkStrictBuild)' == 'true' and '$(ContinuousIntegrationBuild)' == 'true' and '$(IsPackable)' != 'false'">true</TreatWarningsAsErrors>
   </PropertyGroup>
 
 </Project>

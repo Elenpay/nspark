@@ -43,6 +43,18 @@ attestations to each library. Verify a committed tree with:
 ( cd src/NSpark/runtimes && shasum -a 256 -c SHA256SUMS.txt )
 ```
 
+### Consuming NSpark from source (git submodule)
+
+A project that references `src/NSpark/NSpark.csproj` directly (instead of the NuGet package):
+
+- gets the `runtimes/<rid>/native/` tree copied to its output (only the publish RID when
+  publishing with `-r <rid>`), and `NativeLibraryResolver` loads the library from there, since
+  no `deps.json` entry exists for it;
+- builds NSpark without warnings-as-errors: strict analyzer gating applies only when the build is
+  started inside this repository (`NSparkStrictBuild`, overridable with `-p:NSparkStrictBuild=`);
+- skips MinVer when the checkout has no git metadata (for example a Docker build context that
+  excludes `.git`).
+
 ### Rebuilding locally
 
 ```bash

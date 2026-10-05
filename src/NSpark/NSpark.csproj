@@ -50,6 +50,9 @@
     </PackageReference>
   </ItemGroup>
   <PropertyGroup>
+    <!-- Without git metadata (e.g. a Docker build context that excludes .git) MinVer can't
+         read tags; skip it instead of warning. -->
+    <MinVerSkip Condition="!Exists('$(MSBuildThisFileDirectory)../../.git')">true</MinVerSkip>
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <MinVerDefaultPreReleaseIdentifiers>alpha.0</MinVerDefaultPreReleaseIdentifiers>
   </PropertyGroup>
@@ -75,17 +78,17 @@
           Pack="true" PackagePath="runtimes/osx-arm64/native/"
           CopyToOutputDirectory="PreserveNewest"
           Link="runtimes/osx-arm64/native/libspark_frost.dylib"
-          Condition="Exists('runtimes/osx-arm64/native/libspark_frost.dylib')" />
+          Condition="Exists('runtimes/osx-arm64/native/libspark_frost.dylib') and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'osx-arm64')" />
     <None Include="runtimes/linux-x64/native/libspark_frost.so"
           Pack="true" PackagePath="runtimes/linux-x64/native/"
           CopyToOutputDirectory="PreserveNewest"
           Link="runtimes/linux-x64/native/libspark_frost.so"
-          Condition="Exists('runtimes/linux-x64/native/libspark_frost.so')" />
+          Condition="Exists('runtimes/linux-x64/native/libspark_frost.so') and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'linux-x64')" />
     <None Include="runtimes/linux-arm64/native/libspark_frost.so"
           Pack="true" PackagePath="runtimes/linux-arm64/native/"
           CopyToOutputDirectory="PreserveNewest"
           Link="runtimes/linux-arm64/native/libspark_frost.so"
-          Condition="Exists('runtimes/linux-arm64/native/libspark_frost.so')" />
+          Condition="Exists('runtimes/linux-arm64/native/libspark_frost.so') and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'linux-arm64')" />
   </ItemGroup>
 
   <!-- Optional integrity manifest: SHA-256 of every shipped native binary. -->
