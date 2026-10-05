@@ -720,6 +720,7 @@ NSpark.SparkConnection.Dispose() -> void
 NSpark.SparkConnection.DisposeAsync() -> System.Threading.Tasks.ValueTask
 NSpark.SparkConnection.Options.get -> NSpark.SparkOptions!
 NSpark.SparkConnection.SparkConnection(Microsoft.Extensions.Options.IOptions<NSpark.SparkOptions!>! options, System.Net.Http.HttpClient! httpClient) -> void
+NSpark.SparkConnection.SparkConnection(Microsoft.Extensions.Options.IOptions<NSpark.SparkOptions!>! options, System.Net.Http.HttpClient! httpClient, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory, System.Net.Http.HttpMessageHandler? operatorHandler) -> void
 NSpark.SparkConnection.SparkConnection(Microsoft.Extensions.Options.IOptions<NSpark.SparkOptions!>! options, System.Net.Http.HttpClient! httpClient, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory) -> void
 NSpark.SparkNetwork
 NSpark.SparkNetwork.Mainnet = 0 -> NSpark.SparkNetwork

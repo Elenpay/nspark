@@ -316,6 +316,34 @@ Also not on `SparkOptions`:
 - **HttpClient settings** (the SSP and the block explorer). Drive these via
   `IHttpClientFactory` named clients in your DI container.
 
+## Custom operator TLS
+
+Operators are reached through Grpc.Net.Client with the platform's default
+handler and trust store. To talk to operators whose certificates the trust
+store doesn't know — a private CA, or a self-hosted regtest network with
+self-signed certificates — pass your own handler:
+
+```csharp
+var handler = new SocketsHttpHandler
+{
+    EnableMultipleHttp2Connections = true,
+    SslOptions = new SslClientAuthenticationOptions
+    {
+        CertificateChainPolicy = new X509ChainPolicy
+        {
+            TrustMode = X509ChainTrustMode.CustomRootTrust,
+            CustomTrustStore = { X509Certificate2.CreateFromPemFile("operators-ca.pem") },
+        },
+    },
+};
+
+await using var spark = new SparkConnection(options, http, loggerFactory, handler);
+```
+
+The handler is shared by every operator channel and is not disposed with the
+connection. Prefer a custom root over a raw `RemoteCertificateValidationCallback`;
+if you pin self-signed leaf certificates, compare the exact certificate bytes.
+
 ## See also
 
 - [`getting-started.md`](getting-started.md) — minimum setup.

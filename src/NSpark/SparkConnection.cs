@@ -53,10 +53,17 @@ public sealed class SparkConnection : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Construct a client whose operator channels send over <paramref name="operatorHandler"/>
-    /// instead of the network, when it is set — the seam unit tests use to stand in for operators.
+    /// Construct a client whose operator gRPC channels send over <paramref name="operatorHandler"/>
+    /// when it is set, for example a <see cref="SocketsHttpHandler"/> that trusts a private CA or
+    /// pins the certificates of self-hosted (regtest) operators. <c>null</c> uses the default handler.
     /// </summary>
-    internal SparkConnection(
+    /// <remarks>
+    /// The handler is shared by every operator channel, so it must support HTTP/2
+    /// (<see cref="SocketsHttpHandler.EnableMultipleHttp2Connections"/> is recommended). It is not
+    /// disposed with the connection: the caller owns it. Mainnet still requires <c>https://</c>
+    /// operator addresses.
+    /// </remarks>
+    public SparkConnection(
         IOptions<SparkOptions> options,
         HttpClient httpClient,
         ILoggerFactory loggerFactory,
