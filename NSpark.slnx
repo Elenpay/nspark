@@ -1,9 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/NSpark/NSpark.csproj" />
+    <Project Path="src/NSpark.RemoteSigner/NSpark.RemoteSigner.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/NSpark.UnitTests/NSpark.UnitTests.csproj" />
+    <Project Path="tests/NSpark.RemoteSigner.Tests/NSpark.RemoteSigner.Tests.csproj" />
     <Project Path="tests/NSpark.IntegrationTests/NSpark.IntegrationTests.csproj" />
   </Folder>
   <Folder Name="/samples/">

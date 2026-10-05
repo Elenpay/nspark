@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Wire contract for running ISparkSigner behind an HTTP boundary (e.g. an AWS Lambda holding
+    the seed), shared by the signer service and its client so both sides stay in lockstep.
+    Fork-only (Elenpay); not part of the NSpark package.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>NSpark.RemoteSigner</RootNamespace>
+    <AssemblyName>NSpark.RemoteSigner</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NSpark\NSpark.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="NSpark.RemoteSigner.Tests" />
+  </ItemGroup>
+
+</Project>
