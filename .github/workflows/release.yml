@@ -24,8 +24,6 @@ env:
 jobs:
   release:
     name: Build, attest, publish
-    # Publishing to nuget.org is upstream's job; forks (e.g. Elenpay/nspark) never publish.
-    if: github.repository == 'orklabs/nspark'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
