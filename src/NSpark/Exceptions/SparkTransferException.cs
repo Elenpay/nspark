@@ -57,3 +57,22 @@ public sealed class SparkWithdrawalException : SparkException
     {
     }
 }
+
+/// <summary>
+/// Leaves asked for by id are not owned or not spendable (spent, locked, frozen, or renewed into
+/// new leaf ids). Nothing was moved.
+/// </summary>
+public sealed class SparkLeavesNotSpendableException : SparkException
+{
+    /// <summary>The requested leaves that are not owned or not spendable.</summary>
+    public IReadOnlyList<string> LeafIds { get; }
+
+    /// <summary>Creates the exception for <paramref name="leafIds"/>.</summary>
+    /// <param name="operation">The operation that asked for the leaves.</param>
+    /// <param name="leafIds">The requested leaves that are not owned or not spendable.</param>
+    public SparkLeavesNotSpendableException(string operation, IReadOnlyList<string> leafIds)
+        : base(operation, $"{leafIds.Count} requested leaves are not owned or not spendable: {string.Join(", ", leafIds)}.")
+    {
+        LeafIds = leafIds;
+    }
+}

@@ -21,4 +21,11 @@ public sealed record SparkTransfer(
 {
     /// <summary>The Spark invoice this transfer pays, if any.</summary>
     public string? SparkInvoice { get; init; }
+
+    /// <summary>
+    /// The leaves the transfer moves, as the operators reported them. A claimed inbound transfer's
+    /// leaves become this wallet's: exiting exactly them (<c>WithdrawLeavesAsync</c>) moves exactly
+    /// what the transfer brought in, without a leaf swap.
+    /// </summary>
+    public IReadOnlyList<SparkLeaf> Leaves { get; init; } = [];
 }

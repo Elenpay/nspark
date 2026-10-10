@@ -20,7 +20,8 @@ leaf FROST shares, send/claim key-tweak batches and Lightning preimage shares, p
 Not served, by design: two-phase FROST nonces, static-deposit private-key export, adaptor keys
 (SSP leaf swaps) and ECIES decryption. `RemoteSparkSigner` throws `NotSupportedException` for
 them without a round trip. Static deposits and amount-exact exits that need a leaf swap are
-therefore unavailable; withdraw-all cooperative exits, Lightning receives and claims work.
+therefore unavailable; withdraw-all cooperative exits, exits of given leaves (`WithdrawLeavesAsync`,
+for example what one inbound transfer brought in), Lightning receives and claims work.
 
 ## Policy
 

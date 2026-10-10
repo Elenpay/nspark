@@ -158,6 +158,19 @@ internal sealed record UserRequestData(
     [JsonIgnore] public string? Id => ReceiveId ?? SendId;
 }
 
+internal sealed record GetLightningReceiveRequestResponse(
+    [property: JsonPropertyName("user_request")] ReceiveUserRequestData? UserRequest);
+
+internal sealed record ReceiveUserRequestData(
+    [property: JsonPropertyName("__typename")] string TypeName,
+    [property: JsonPropertyName("lightning_receive_request_id")] string? Id,
+    [property: JsonPropertyName("lightning_receive_request_status")] string? Status,
+    [property: JsonPropertyName("lightning_receive_request_transfer")] LightningReceiveTransferData? Transfer);
+
+internal sealed record LightningReceiveTransferData(
+    [property: JsonPropertyName("transfer_spark_id")] string? SparkId,
+    [property: JsonPropertyName("transfer_total_amount")] CurrencyAmountData? TotalAmount);
+
 internal sealed record CurrencyAmountData(
     [property: JsonPropertyName("original_value")] long OriginalValue,
     [property: JsonPropertyName("original_unit")] string? OriginalUnit);

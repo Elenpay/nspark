@@ -165,6 +165,27 @@ operators did not renew this time; a later attempt can move them),
 `LockedSats` (held by an in-flight operation) and, on the result,
 `UnclaimedSats` (inbound sats that could not be claimed first).
 
+## Withdraw what one transfer brought in
+
+A claimed inbound transfer lists the leaves it moved (`SparkTransfer.Leaves`), and those leaves
+already add up to what it brought in. `WithdrawLeavesAsync` exits exactly them, without a leaf
+swap, so a remote signer can sign it too (see [remote-signer.md](remote-signer.md)):
+
+```csharp
+var request = await wallet.GetLightningReceiveRequestAsync(invoice.RequestId!);   // TransferId once paid
+var claim = await wallet.ClaimPendingTransfersAsync();
+var transfer = claim.ClaimedTransfers.Single(t => t.Id == request!.TransferId);
+
+var exit = await wallet.WithdrawLeavesAsync(transfer.Leaves.Select(l => l.Id).ToList(), "bc1q...",
+    maxFeeSats: 20_000);
+Console.WriteLine($"{exit.Txid}: sent {exit.SentSats}, paid {exit.PayoutSats}, fee {exit.FeeSats}");
+```
+
+Every leaf must be owned and spendable. Renewable leaves are renewed first, and a leaf renewed into
+a new leaf id is no longer spendable under its old id: `SparkLeavesNotSpendableException` names the
+leaves that are not spendable, and nothing moves. The fee comes out of the leaves' total, with the
+same response verification and fee bound as `WithdrawAsync`.
+
 ## Errors
 
 | Exception                         | Cause                                                                 |

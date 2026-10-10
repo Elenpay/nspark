@@ -169,6 +169,42 @@ public static class LightningService
     }
 
     /// <summary>
+    /// The SSP's Lightning receive request by its request id, with the Spark transfer that paid it
+    /// once the SSP has sent it: match <see cref="LightningReceiveRequest.TransferId"/> with a claimed
+    /// transfer to know exactly which leaves the payment brought in. Returns null if the SSP has no
+    /// record of the request, or if the id resolves to another request type.
+    /// </summary>
+    public static async Task<LightningReceiveRequest?> GetLightningReceiveRequestAsync(
+        this SparkWallet wallet,
+        string requestId,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(wallet);
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
+        var response = await wallet.SspClient.ExecuteAsync<GetLightningReceiveRequestResponse>(
+            Queries.GetLightningReceiveRequest,
+            new Dictionary<string, object> { ["request_id"] = requestId },
+            ct).ConfigureAwait(false);
+
+        return ToLightningReceiveRequest(response.UserRequest, requestId);
+    }
+
+    /// <summary>The receive variant of a user request, or null for anything else.</summary>
+    internal static LightningReceiveRequest? ToLightningReceiveRequest(ReceiveUserRequestData? data, string requestId)
+    {
+        if (data is null || !string.Equals(data.TypeName, "LightningReceiveRequest", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var transferId = string.IsNullOrWhiteSpace(data.Transfer?.SparkId) ? null : data.Transfer.SparkId;
+        long? transferAmount = data.Transfer?.TotalAmount is { } amount
+            ? TransferMapping.ReportedSats((ulong)Math.Max(0, CurrencyAmountExtensions.ToSats(amount.OriginalValue, amount.OriginalUnit)))
+            : null;
+        return new LightningReceiveRequest(data.Id ?? requestId, data.Status, transferId, transferId is null ? null : transferAmount);
+    }
+
+    /// <summary>
     /// Query the SSP for the status of an outgoing Lightning payment by its SSP request id (the
     /// string returned from <see cref="PayLightningInvoiceAsync"/>). Returns null if the SSP has
     /// no record of the request id, or if the request id resolves to a non-send request type

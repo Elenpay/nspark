@@ -1148,3 +1148,45 @@ virtual NSpark.Exceptions.SparkException.IsRetryable.get -> bool
 virtual NSpark.Models.SparkEvent.EqualityContract.get -> System.Type!
 virtual NSpark.Models.SparkEvent.Equals(NSpark.Models.SparkEvent? other) -> bool
 virtual NSpark.Models.SparkEvent.PrintMembers(System.Text.StringBuilder! builder) -> bool
+NSpark.Exceptions.SparkLeavesNotSpendableException
+NSpark.Exceptions.SparkLeavesNotSpendableException.LeafIds.get -> System.Collections.Generic.IReadOnlyList<string!>!
+NSpark.Exceptions.SparkLeavesNotSpendableException.SparkLeavesNotSpendableException(string! operation, System.Collections.Generic.IReadOnlyList<string!>! leafIds) -> void
+NSpark.Models.LightningReceiveRequest
+NSpark.Models.LightningReceiveRequest.<Clone>$() -> NSpark.Models.LightningReceiveRequest!
+NSpark.Models.LightningReceiveRequest.Deconstruct(out string! Id, out string? Status, out string? TransferId, out long? TransferAmountSats) -> void
+NSpark.Models.LightningReceiveRequest.Equals(NSpark.Models.LightningReceiveRequest? other) -> bool
+NSpark.Models.LightningReceiveRequest.Id.get -> string!
+NSpark.Models.LightningReceiveRequest.Id.init -> void
+NSpark.Models.LightningReceiveRequest.LightningReceiveRequest(string! Id, string? Status, string? TransferId, long? TransferAmountSats) -> void
+NSpark.Models.LightningReceiveRequest.Status.get -> string?
+NSpark.Models.LightningReceiveRequest.Status.init -> void
+NSpark.Models.LightningReceiveRequest.TransferAmountSats.get -> long?
+NSpark.Models.LightningReceiveRequest.TransferAmountSats.init -> void
+NSpark.Models.LightningReceiveRequest.TransferId.get -> string?
+NSpark.Models.LightningReceiveRequest.TransferId.init -> void
+NSpark.Models.SparkTransfer.Leaves.get -> System.Collections.Generic.IReadOnlyList<NSpark.Models.SparkLeaf!>!
+NSpark.Models.SparkTransfer.Leaves.init -> void
+NSpark.Models.WithdrawLeavesResult
+NSpark.Models.WithdrawLeavesResult.<Clone>$() -> NSpark.Models.WithdrawLeavesResult!
+NSpark.Models.WithdrawLeavesResult.Deconstruct(out string! Txid, out long SentSats, out long PayoutSats) -> void
+NSpark.Models.WithdrawLeavesResult.Equals(NSpark.Models.WithdrawLeavesResult? other) -> bool
+NSpark.Models.WithdrawLeavesResult.FeeSats.get -> long
+NSpark.Models.WithdrawLeavesResult.PayoutSats.get -> long
+NSpark.Models.WithdrawLeavesResult.PayoutSats.init -> void
+NSpark.Models.WithdrawLeavesResult.SentSats.get -> long
+NSpark.Models.WithdrawLeavesResult.SentSats.init -> void
+NSpark.Models.WithdrawLeavesResult.Txid.get -> string!
+NSpark.Models.WithdrawLeavesResult.Txid.init -> void
+NSpark.Models.WithdrawLeavesResult.WithdrawLeavesResult(string! Txid, long SentSats, long PayoutSats) -> void
+override NSpark.Models.LightningReceiveRequest.Equals(object? obj) -> bool
+override NSpark.Models.LightningReceiveRequest.GetHashCode() -> int
+override NSpark.Models.LightningReceiveRequest.ToString() -> string!
+override NSpark.Models.WithdrawLeavesResult.Equals(object? obj) -> bool
+override NSpark.Models.WithdrawLeavesResult.GetHashCode() -> int
+override NSpark.Models.WithdrawLeavesResult.ToString() -> string!
+static NSpark.Models.LightningReceiveRequest.operator !=(NSpark.Models.LightningReceiveRequest? left, NSpark.Models.LightningReceiveRequest? right) -> bool
+static NSpark.Models.LightningReceiveRequest.operator ==(NSpark.Models.LightningReceiveRequest? left, NSpark.Models.LightningReceiveRequest? right) -> bool
+static NSpark.Models.WithdrawLeavesResult.operator !=(NSpark.Models.WithdrawLeavesResult? left, NSpark.Models.WithdrawLeavesResult? right) -> bool
+static NSpark.Models.WithdrawLeavesResult.operator ==(NSpark.Models.WithdrawLeavesResult? left, NSpark.Models.WithdrawLeavesResult? right) -> bool
+static NSpark.Services.LightningService.GetLightningReceiveRequestAsync(this NSpark.SparkWallet! wallet, string! requestId, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<NSpark.Models.LightningReceiveRequest?>!
+static NSpark.Services.WithdrawalService.WithdrawLeavesAsync(this NSpark.SparkWallet! wallet, System.Collections.Generic.IReadOnlyCollection<string!>! leafIds, string! onChainAddress, long? maxFeeSats = null, System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<NSpark.Models.WithdrawLeavesResult!>!

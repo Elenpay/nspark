@@ -128,6 +128,72 @@ public static class WithdrawalService
     }
 
     /// <summary>
+    /// Withdraw exactly <paramref name="leafIds"/> to <paramref name="onChainAddress"/> in one
+    /// cooperative exit, without a leaf swap.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use it to exit what one inbound transfer brought in (<see cref="SparkTransfer.Leaves"/>): the
+    /// leaves already add up to that amount, so the SSP is never asked to re-denominate them. That
+    /// leaf swap is the only step of an amount-exact withdrawal that needs adaptor signatures, which
+    /// a remote signer does not serve; this exit needs none.
+    /// </para>
+    /// <para>
+    /// Renewable leaves are renewed first, as on every spend path; a leaf renewed into a new leaf id
+    /// is then no longer spendable under its old id. Every requested leaf must be owned and
+    /// spendable, or <see cref="SparkLeavesNotSpendableException"/> names the ones that are not and
+    /// nothing moves. The SSP's fee comes out of the leaves' total; the same response verification
+    /// and fee bound as <see cref="WithdrawAsync"/> apply.
+    /// </para>
+    /// </remarks>
+    /// <param name="wallet">The Spark wallet.</param>
+    /// <param name="leafIds">The leaves to exit, all of them owned and spendable.</param>
+    /// <param name="onChainAddress">Destination Bitcoin address on the wallet's network.</param>
+    /// <param name="maxFeeSats">Highest fee the caller accepts; <c>null</c> uses the SSP's own quote.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="SparkLeavesNotSpendableException">A requested leaf is not owned or not spendable.</exception>
+    /// <exception cref="FeeExceedsLimitException">The fee would consume the whole amount or exceed the cap.</exception>
+    public static async Task<WithdrawLeavesResult> WithdrawLeavesAsync(
+        this SparkWallet wallet,
+        IReadOnlyCollection<string> leafIds,
+        string onChainAddress,
+        long? maxFeeSats = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(wallet);
+        ArgumentNullException.ThrowIfNull(leafIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(onChainAddress);
+        if (leafIds.Count == 0)
+        {
+            throw new ArgumentException("At least one leaf is needed.", nameof(leafIds));
+        }
+
+        if (leafIds.Distinct(StringComparer.Ordinal).Count() != leafIds.Count)
+        {
+            throw new ArgumentException("A leaf is listed twice.", nameof(leafIds));
+        }
+
+        _ = CoopExitValidator.ScriptPubKeyFor(onChainAddress, wallet.Options.Network);
+
+        var spendable = (await wallet.GetSpendableLeavesAsync(ct).ConfigureAwait(false))
+            .ToDictionary(l => l.Id, StringComparer.Ordinal);
+        var missing = leafIds.Where(id => !spendable.ContainsKey(id)).ToList();
+        if (missing.Count > 0)
+        {
+            throw new SparkLeavesNotSpendableException(Operation, missing);
+        }
+
+        var selected = leafIds.Select(id => spendable[id]).ToList();
+        var amountSats = selected.Sum(l => l.ValueSats);
+        var quote = await wallet.GetFeeQuoteAsync(leafIds.ToArray(), onChainAddress, ct).ConfigureAwait(false);
+        var feeCap = CoopExitValidator.ResolveFeeCap(quote.FeeSats, maxFeeSats, amountSats);
+
+        var exit = await PerformCooperativeExitAsync(
+            wallet, selected, amountSats, feeCap, onChainAddress, ct).ConfigureAwait(false);
+        return new WithdrawLeavesResult(exit.Txid, amountSats, exit.PayoutSats);
+    }
+
+    /// <summary>
     /// Everything <see cref="WithdrawAllAsync"/> would do, without doing it: claims pending
     /// inbound transfers, renews renewable leaves, and quotes the SSP fee for every spendable
     /// leaf. Use it to show the user what will move, what it costs, and what stays behind
