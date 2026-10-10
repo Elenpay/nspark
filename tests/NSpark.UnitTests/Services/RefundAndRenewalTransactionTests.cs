@@ -101,6 +101,41 @@ public class RefundConstructionTests
         TimelockHelper.DirectNodeTxForRefund(node).Should().BeNull();
         Trio(node).DirectRefund.Should().BeNull();
     }
+
+    private static WithdrawalService.ConnectorRefunds ExitRefunds(TreeNode node)
+    {
+        var connectorTx = RawTransaction.Parse(TestTransactions.Tx(0xFFFFFFFD, 0x44,
+            new RawTransaction.Output(354, TestTransactions.P2trScript(0x55)),
+            new RawTransaction.Output(354, TestTransactions.P2trScript(0x66))));
+        return WithdrawalService.BuildConnectorRefunds(node, s_receiver, connectorTx, 1, "mainnet");
+    }
+
+    [Test]
+    public void A_cooperative_exit_signs_a_direct_refund_for_a_zero_timelock_node_with_a_direct_node_transaction()
+    {
+        // What a zero-timelock renewal leaves. Unlike a claim, the operators' exit check takes both direct refunds or
+        // none for a leaf with a direct node transaction, and requires them
+        var renewed = Leaf(0, withDirect: true);
+
+        var refunds = ExitRefunds(renewed);
+
+        refunds.Direct.Should().NotBeNull();
+        var direct = RawTransaction.Parse(refunds.Direct!.Tx);
+        direct.Inputs.Should().HaveCount(2, "it spends the direct node transaction and the leaf's connector output");
+        direct.Inputs[0].PreviousTxid.Should().Equal(RawTransaction.Parse(renewed.DirectTx.Span).Txid);
+        direct.Inputs[1].PreviousIndex.Should().Be(1u);
+        refunds.Direct.Sighash.Should().HaveCount(32);
+        RawTransaction.Parse(refunds.DirectFromCpfp.Tx).Inputs[0].PreviousTxid.Should().Equal(RawTransaction.Parse(renewed.NodeTx.Span).Txid);
+    }
+
+    [Test]
+    public void A_cooperative_exit_of_a_leaf_without_a_direct_node_transaction_signs_no_direct_refund()
+    {
+        var refunds = ExitRefunds(Leaf(0, withDirect: false));
+
+        refunds.Direct.Should().BeNull();
+        RawTransaction.Parse(refunds.DirectFromCpfp.Tx).Inputs.Should().HaveCount(2);
+    }
 }
 
 /// <summary>

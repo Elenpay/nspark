@@ -485,8 +485,8 @@ public static class WithdrawalService
     internal sealed record ConnectorRefund(byte[] Tx, byte[] Sighash);
 
     /// <summary>
-    /// The three connector refunds of one leaf. <see cref="Direct"/> is absent for zero-timelock
-    /// nodes and leaves without a direct node transaction.
+    /// The three connector refunds of one leaf. <see cref="Direct"/> is absent only for a leaf
+    /// without a direct node transaction.
     /// </summary>
     internal sealed record ConnectorRefunds(ConnectorRefund Cpfp, ConnectorRefund? Direct, ConnectorRefund DirectFromCpfp);
 
@@ -494,8 +494,17 @@ public static class WithdrawalService
     /// The leaf's next refund transactions with the connector output appended as a second
     /// input, and their two-input sighashes (BIP-341, prevouts = node output + connector
     /// output). This is what the user signs for a cooperative exit; mirrors the reference SDK's
-    /// <c>createConnectorRefundTxs</c> + <c>signRefundsForCoopExit</c>.
+    /// <c>createConnectorRefundTxs</c> + <c>signRefundsForCoopExit</c>, except for a zero-timelock
+    /// node with a direct node transaction (below).
     /// </summary>
+    /// <remarks>
+    /// A leaf with a direct node transaction gets a direct refund spending it, even when its node
+    /// transaction is at timelock 0, which is what a zero-timelock renewal leaves. The operators'
+    /// cooperative-exit check (<c>validateSendLeafRefundTxs</c>, <c>requireDirectTx</c> set) takes
+    /// both direct refunds or none for such a leaf and requires them, and its connector validation
+    /// has no zero-node rule. Only a claim exempts a zero-timelock node from the direct refund, which
+    /// is what the reference SDK applies here too, so its exit of a renewed root leaf is refused.
+    /// </remarks>
     internal static ConnectorRefunds BuildConnectorRefunds(
         TreeNode node,
         byte[] receiverPubKey,
@@ -505,11 +514,19 @@ public static class WithdrawalService
     {
         var (cpfpSequence, directSequence) = TimelockHelper.ComputeNextSequences(
             node.RefundTx.ToByteArray(), Operation, node.Id);
-        var directNodeTx = TimelockHelper.DirectNodeTxForRefund(node);
+        var directNodeTx = node.DirectTx.IsEmpty ? null : node.DirectTx.ToByteArray();
 
         // The SSP validates all three refund outputs on coop-exit and rejects with
         // "expected value X on output 0" if the standard fee isn't deducted.
-        var trio = TimelockHelper.LeafRefundTrio(node, receiverPubKey, networkStr, cpfpSequence, directSequence);
+        var trio = SparkTxBuilder.BuildRefundTxTrio(
+            cpfpNodeTx: node.NodeTx.ToByteArray(),
+            directNodeTx: directNodeTx,
+            vout: 0,
+            receivingPublicKey: receiverPubKey,
+            network: networkStr,
+            sequence: cpfpSequence,
+            directSequence: directSequence,
+            feeSats: SparkConstants.DefaultRefundFeeSats);
 
         var connectorOutput = connectorTx.OutputAt(connectorVout);
         var connectorTxid = connectorTx.Txid;
