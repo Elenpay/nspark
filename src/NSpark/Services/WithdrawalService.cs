@@ -139,10 +139,11 @@ public static class WithdrawalService
     /// a remote signer does not serve; this exit needs none.
     /// </para>
     /// <para>
-    /// Renewable leaves are renewed first, as on every spend path; a leaf renewed into a new leaf id
-    /// is then no longer spendable under its old id. Every requested leaf must be owned and
-    /// spendable, or <see cref="SparkLeavesNotSpendableException"/> names the ones that are not and
-    /// nothing moves. The SSP's fee comes out of the leaves' total; the same response verification
+    /// Renewable leaves are renewed first, as on every spend path. A renewal keeps the leaf's id (the
+    /// operators update the leaf in place; the split node a node renewal adds is a new parent, not
+    /// a new leaf), so the ids a transfer reported stay the ones to exit. Every requested leaf must be
+    /// owned and spendable, or <see cref="SparkLeavesNotSpendableException"/> names the ones that are
+    /// not (spent, locked, frozen, or not renewed) and nothing moves. The SSP's fee comes out of the leaves' total; the same response verification
     /// and fee bound as <see cref="WithdrawAsync"/> apply.
     /// </para>
     /// </remarks>

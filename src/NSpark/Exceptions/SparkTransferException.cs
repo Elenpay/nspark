@@ -59,8 +59,8 @@ public sealed class SparkWithdrawalException : SparkException
 }
 
 /// <summary>
-/// Leaves asked for by id are not owned or not spendable (spent, locked, frozen, or renewed into
-/// new leaf ids). Nothing was moved.
+/// Leaves asked for by id are not owned or not spendable (spent, locked, frozen, or due a renewal
+/// that failed; a renewal itself keeps the leaf's id). Nothing was moved.
 /// </summary>
 public sealed class SparkLeavesNotSpendableException : SparkException
 {

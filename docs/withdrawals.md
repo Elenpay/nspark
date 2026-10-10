@@ -181,9 +181,11 @@ var exit = await wallet.WithdrawLeavesAsync(transfer.Leaves.Select(l => l.Id).To
 Console.WriteLine($"{exit.Txid}: sent {exit.SentSats}, paid {exit.PayoutSats}, fee {exit.FeeSats}");
 ```
 
-Every leaf must be owned and spendable. Renewable leaves are renewed first, and a leaf renewed into
-a new leaf id is no longer spendable under its old id: `SparkLeavesNotSpendableException` names the
-leaves that are not spendable, and nothing moves. The fee comes out of the leaves' total, with the
+Every leaf must be owned and spendable. Renewable leaves are renewed first; a renewal keeps the
+leaf's id (the operators update the leaf in place, and the split node a node renewal adds is a new
+parent, not a new leaf), so the ids a transfer reported stay the ones to exit. A leaf that is spent,
+locked, frozen, or due a renewal that failed is not spendable: `SparkLeavesNotSpendableException`
+names those leaves, and nothing moves. The fee comes out of the leaves' total, with the
 same response verification and fee bound as `WithdrawAsync`.
 
 ## Errors
