@@ -60,3 +60,13 @@ public sealed record WithdrawAllResult(
     /// <summary>SSP fee actually taken.</summary>
     public long FeeSats => SentSats - PayoutSats;
 }
+
+/// <summary>Outcome of <c>WithdrawLeavesAsync</c>.</summary>
+/// <param name="Txid">L1 transaction id of the cooperative exit (display order).</param>
+/// <param name="SentSats">Sats handed to the SSP: the exited leaves' total.</param>
+/// <param name="PayoutSats">Sats the verified exit transaction pays to the destination.</param>
+public sealed record WithdrawLeavesResult(string Txid, long SentSats, long PayoutSats)
+{
+    /// <summary>SSP fee actually taken, the exit's miner fee included.</summary>
+    public long FeeSats => SentSats - PayoutSats;
+}

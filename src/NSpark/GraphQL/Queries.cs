@@ -15,7 +15,7 @@ internal static class Queries
         """;
 
     public const string GetUserRequest = """
-        query GetUserRequest($request_id: ID!) {
+        query UserRequest($request_id: ID!) {
             user_request(request_id: $request_id) {
                 __typename
                 ... on LightningReceiveRequest {
@@ -33,6 +33,26 @@ internal static class Queries
                     }
                     lightning_send_request_idempotency_key: idempotency_key
                     lightning_send_request_payment_preimage: payment_preimage
+                }
+            }
+        }
+        """;
+
+    /// <summary>A Lightning receive request with the transfer that paid it, once the SSP has sent it.</summary>
+    public const string GetLightningReceiveRequest = """
+        query UserRequest($request_id: ID!) {
+            user_request(request_id: $request_id) {
+                __typename
+                ... on LightningReceiveRequest {
+                    lightning_receive_request_id: id
+                    lightning_receive_request_status: status
+                    lightning_receive_request_transfer: transfer {
+                        transfer_spark_id: spark_id
+                        transfer_total_amount: total_amount {
+                            original_value
+                            original_unit
+                        }
+                    }
                 }
             }
         }

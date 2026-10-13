@@ -44,6 +44,22 @@ Console.WriteLine($"Fee: {quote.FeeSats} sats");
 `WithdrawAsync` fetches the same quote internally and uses it as the fee
 bound unless you pass `maxFeeSats`. Show it to the user before confirming.
 
+## Exit speed
+
+Every withdrawal takes an `exitSpeed` (`ExitSpeed.Fast`, the default, `Medium` or
+`Slow`). The SSP quotes each speed separately: the same user fee, plus an L1
+broadcast fee at the fee rate that speed targets, so `Slow` is the cheapest and
+confirms last. Pass the same speed to `GetFeeQuoteAsync` and to the withdrawal,
+which uses it for the fee bound and asks it of the SSP:
+
+```csharp
+var slowFee = await wallet.GetFeeQuoteAsync(leafIds, "bc1q...", ExitSpeed.Slow);
+var exit = await wallet.WithdrawLeavesAsync(leafIds, "bc1q...", exitSpeed: ExitSpeed.Slow);
+```
+
+The leaves stay the wallet's (locked, counted in `SatsBalance.Owned`) until the
+exit transaction confirms, which at `Slow` can take hours when fees run high.
+
 ## Withdraw
 
 ```csharp
@@ -164,6 +180,29 @@ a unilateral exit recovers them), `UnrenewedSats` (renewable leaves the
 operators did not renew this time; a later attempt can move them),
 `LockedSats` (held by an in-flight operation) and, on the result,
 `UnclaimedSats` (inbound sats that could not be claimed first).
+
+## Withdraw what one transfer brought in
+
+A claimed inbound transfer lists the leaves it moved (`SparkTransfer.Leaves`), and those leaves
+already add up to what it brought in. `WithdrawLeavesAsync` exits exactly them, without a leaf
+swap, so a remote signer can sign it too (see [remote-signer.md](remote-signer.md)):
+
+```csharp
+var request = await wallet.GetLightningReceiveRequestAsync(invoice.RequestId!);   // TransferId once paid
+var claim = await wallet.ClaimPendingTransfersAsync();
+var transfer = claim.ClaimedTransfers.Single(t => t.Id == request!.TransferId);
+
+var exit = await wallet.WithdrawLeavesAsync(transfer.Leaves.Select(l => l.Id).ToList(), "bc1q...",
+    maxFeeSats: 20_000);
+Console.WriteLine($"{exit.Txid}: sent {exit.SentSats}, paid {exit.PayoutSats}, fee {exit.FeeSats}");
+```
+
+Every leaf must be owned and spendable. Renewable leaves are renewed first; a renewal keeps the
+leaf's id (the operators update the leaf in place, and the split node a node renewal adds is a new
+parent, not a new leaf), so the ids a transfer reported stay the ones to exit. A leaf that is spent,
+locked, frozen, or due a renewal that failed is not spendable: `SparkLeavesNotSpendableException`
+names those leaves, and nothing moves. The fee comes out of the leaves' total, with the
+same response verification and fee bound as `WithdrawAsync`.
 
 ## Errors
 

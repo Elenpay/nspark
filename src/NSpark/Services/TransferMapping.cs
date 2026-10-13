@@ -28,6 +28,10 @@ internal static class TransferMapping
         Type: transfer.Type.ToString())
     {
         SparkInvoice = string.IsNullOrEmpty(transfer.SparkInvoice) ? null : transfer.SparkInvoice,
+        Leaves = transfer.Leaves
+            .Where(l => l.Leaf is not null)
+            .Select(l => new SparkLeaf(l.Leaf.Id, l.Leaf.TreeId, ReportedSats(l.Leaf.Value), l.Leaf.Status) { Node = l.Leaf })
+            .ToList(),
     };
 }
 

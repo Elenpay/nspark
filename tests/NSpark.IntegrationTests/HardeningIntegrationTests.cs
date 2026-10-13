@@ -300,7 +300,7 @@ public class HardeningIntegrationTests
             // The quote claims, renews what the operators will renew, and fetches a fee quote;
             // nothing leaves the wallet.
             var destination = (await other.GetStaticDepositAddressAsync(ct)).Address;
-            var quote = await wallet.QuoteWithdrawAllAsync(destination, ct);
+            var quote = await wallet.QuoteWithdrawAllAsync(destination, ct: ct);
             var after = (await wallet.GetBalanceAsync(ct)).SatsBalance;
             TestContext.Out.WriteLine(
                 $"[{label}] available {balance.SatsBalance.Available} frozen {balance.SatsBalance.Frozen} -> quote spendable {quote.SpendableSats} " +
@@ -383,7 +383,7 @@ public class HardeningIntegrationTests
         var ct = cts.Token;
         var pair = await MakePairAsync(ct);
         var destination = await DestinationAsync(pair, ct);
-        var quote = await pair.Sender.QuoteWithdrawAllAsync(destination, ct);
+        var quote = await pair.Sender.QuoteWithdrawAllAsync(destination, ct: ct);
         TestContext.Out.WriteLine(
             $"[{pair.SenderLabel}] quote: spendable {quote.SpendableSats} fee {quote.QuotedFeeSats} payout≈{quote.EstimatedPayoutSats} " +
             $"frozen {quote.FrozenSats} locked {quote.LockedSats} incoming {quote.IncomingSats} leaves {quote.LeafCount}");

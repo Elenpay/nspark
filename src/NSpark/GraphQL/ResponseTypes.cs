@@ -55,7 +55,9 @@ internal sealed record CoopExitFeeEstimateResponse(
     [property: JsonPropertyName("coop_exit_fee_estimates")] CoopExitFeeEstimateData CoopExitFeeEstimates);
 
 internal sealed record CoopExitFeeEstimateData(
-    [property: JsonPropertyName("speed_fast")] CoopExitSpeedData SpeedFast);
+    [property: JsonPropertyName("speed_fast")] CoopExitSpeedData? SpeedFast,
+    [property: JsonPropertyName("speed_medium")] CoopExitSpeedData? SpeedMedium = null,
+    [property: JsonPropertyName("speed_slow")] CoopExitSpeedData? SpeedSlow = null);
 
 internal sealed record CoopExitSpeedData(
     [property: JsonPropertyName("user_fee")] CoopExitFeeValue UserFee,
@@ -157,6 +159,19 @@ internal sealed record UserRequestData(
     [JsonIgnore] public string? Status => ReceiveStatus ?? SendStatus;
     [JsonIgnore] public string? Id => ReceiveId ?? SendId;
 }
+
+internal sealed record GetLightningReceiveRequestResponse(
+    [property: JsonPropertyName("user_request")] ReceiveUserRequestData? UserRequest);
+
+internal sealed record ReceiveUserRequestData(
+    [property: JsonPropertyName("__typename")] string TypeName,
+    [property: JsonPropertyName("lightning_receive_request_id")] string? Id,
+    [property: JsonPropertyName("lightning_receive_request_status")] string? Status,
+    [property: JsonPropertyName("lightning_receive_request_transfer")] LightningReceiveTransferData? Transfer);
+
+internal sealed record LightningReceiveTransferData(
+    [property: JsonPropertyName("transfer_spark_id")] string? SparkId,
+    [property: JsonPropertyName("transfer_total_amount")] CurrencyAmountData? TotalAmount);
 
 internal sealed record CurrencyAmountData(
     [property: JsonPropertyName("original_value")] long OriginalValue,

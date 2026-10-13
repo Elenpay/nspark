@@ -17,13 +17,15 @@ public static class WithdrawalService
     private const string Operation = "withdrawal.withdraw";
 
     /// <summary>
-    /// Get a fee estimate for an on-chain withdrawal (cooperative exit). Each fee is read in the
-    /// unit the SSP reports it in; any other unit is refused.
+    /// Get a fee estimate for an on-chain withdrawal (cooperative exit) at <paramref name="exitSpeed"/>: the SSP's
+    /// user fee plus its L1 broadcast fee for that speed. Each fee is read in the unit the SSP reports it in; any
+    /// other unit is refused.
     /// </summary>
     public static async Task<FeeQuote> GetFeeQuoteAsync(
         this SparkWallet wallet,
         string[] leafIds,
         string onChainAddress,
+        ExitSpeed exitSpeed = ExitSpeed.Fast,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(wallet);
@@ -36,24 +38,43 @@ public static class WithdrawalService
         var response = await wallet.SspClient.ExecuteAsync<CoopExitFeeEstimateResponse>(
             Mutations.CoopExitFeeEstimate, variables, ct).ConfigureAwait(false);
 
-        var fast = response.CoopExitFeeEstimates?.SpeedFast
-            ?? throw new SparkUntrustedResponseException("withdrawal.fee", "The SSP returned no fast exit estimate.");
+        return new FeeQuote(FeeSats: FeeSatsAt(response.CoopExitFeeEstimates, exitSpeed), FeeRateSatsPerVbyte: 0);
+    }
+
+    /// <summary>The total fee of the SSP's estimate for <paramref name="exitSpeed"/>; refused when it has none.</summary>
+    internal static long FeeSatsAt(CoopExitFeeEstimateData? estimates, ExitSpeed exitSpeed)
+    {
+        var estimate = exitSpeed switch
+        {
+            ExitSpeed.Fast => estimates?.SpeedFast,
+            ExitSpeed.Medium => estimates?.SpeedMedium,
+            ExitSpeed.Slow => estimates?.SpeedSlow,
+            _ => throw new ArgumentOutOfRangeException(nameof(exitSpeed), exitSpeed, "Unknown exit speed."),
+        } ?? throw new SparkUntrustedResponseException(
+            "withdrawal.fee", $"The SSP returned no {exitSpeed.ToString().ToLowerInvariant()} exit estimate.");
+
         var userFee = CurrencyAmountExtensions.ToFeeSats(
-            fast.UserFee?.OriginalValue ?? -1, fast.UserFee?.OriginalUnit, "cooperative exit user fee");
+            estimate.UserFee?.OriginalValue ?? -1, estimate.UserFee?.OriginalUnit, "cooperative exit user fee");
         var l1Fee = CurrencyAmountExtensions.ToFeeSats(
-            fast.L1BroadcastFee?.OriginalValue ?? -1, fast.L1BroadcastFee?.OriginalUnit, "cooperative exit broadcast fee");
-        long totalFeeSats;
+            estimate.L1BroadcastFee?.OriginalValue ?? -1, estimate.L1BroadcastFee?.OriginalUnit, "cooperative exit broadcast fee");
         try
         {
-            totalFeeSats = checked(userFee + l1Fee);
+            return checked(userFee + l1Fee);
         }
         catch (OverflowException ex)
         {
             throw new SparkUntrustedResponseException("withdrawal.fee", "The SSP's cooperative exit fees overflow.", ex);
         }
-
-        return new FeeQuote(FeeSats: totalFeeSats, FeeRateSatsPerVbyte: 0);
     }
+
+    /// <summary>The SSP's spelling of <paramref name="exitSpeed"/> (<c>ExitSpeed</c> enum).</summary>
+    internal static string GraphQLName(ExitSpeed exitSpeed) => exitSpeed switch
+    {
+        ExitSpeed.Fast => "FAST",
+        ExitSpeed.Medium => "MEDIUM",
+        ExitSpeed.Slow => "SLOW",
+        _ => throw new ArgumentOutOfRangeException(nameof(exitSpeed), exitSpeed, "Unknown exit speed."),
+    };
 
     /// <summary>
     /// Withdraw from Spark to an on-chain Bitcoin address via a cooperative exit brokered by
@@ -88,6 +109,7 @@ public static class WithdrawalService
     /// leaves is used as the bound. Throws <see cref="FeeExceedsLimitException"/> if the quote is
     /// above the cap, or if the cap would consume the whole amount.
     /// </param>
+    /// <param name="exitSpeed">How fast the exit should confirm; the slower, the cheaper (see <see cref="ExitSpeed"/>).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The L1 transaction id of the cooperative exit (display order, big-endian hex).</returns>
     public static async Task<string> WithdrawAsync(
@@ -95,6 +117,7 @@ public static class WithdrawalService
         string onChainAddress,
         long amountSats,
         long? maxFeeSats = null,
+        ExitSpeed exitSpeed = ExitSpeed.Fast,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(wallet);
@@ -119,12 +142,81 @@ public static class WithdrawalService
 
         // Bound the fee before asking the SSP to build the exit.
         var quote = await wallet.GetFeeQuoteAsync(
-            selectedLeaves.Select(l => l.Id).ToArray(), onChainAddress, ct).ConfigureAwait(false);
+            selectedLeaves.Select(l => l.Id).ToArray(), onChainAddress, exitSpeed, ct).ConfigureAwait(false);
         var feeCap = CoopExitValidator.ResolveFeeCap(quote.FeeSats, maxFeeSats, amountSats);
 
         var exit = await PerformCooperativeExitAsync(
-            wallet, selectedLeaves, amountSats, feeCap, onChainAddress, ct).ConfigureAwait(false);
+            wallet, selectedLeaves, amountSats, feeCap, onChainAddress, exitSpeed, ct).ConfigureAwait(false);
         return exit.Txid;
+    }
+
+    /// <summary>
+    /// Withdraw exactly <paramref name="leafIds"/> to <paramref name="onChainAddress"/> in one
+    /// cooperative exit, without a leaf swap.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Use it to exit what one inbound transfer brought in (<see cref="SparkTransfer.Leaves"/>): the
+    /// leaves already add up to that amount, so the SSP is never asked to re-denominate them. That
+    /// leaf swap is the only step of an amount-exact withdrawal that needs adaptor signatures, which
+    /// a remote signer does not serve; this exit needs none.
+    /// </para>
+    /// <para>
+    /// Renewable leaves are renewed first, as on every spend path. A renewal keeps the leaf's id (the
+    /// operators update the leaf in place; the split node a node renewal adds is a new parent, not
+    /// a new leaf), so the ids a transfer reported stay the ones to exit. Every requested leaf must be
+    /// owned and spendable, or <see cref="SparkLeavesNotSpendableException"/> names the ones that are
+    /// not (spent, locked, frozen, or not renewed) and nothing moves. The SSP's fee comes out of the leaves' total; the same response verification
+    /// and fee bound as <see cref="WithdrawAsync"/> apply.
+    /// </para>
+    /// </remarks>
+    /// <param name="wallet">The Spark wallet.</param>
+    /// <param name="leafIds">The leaves to exit, all of them owned and spendable.</param>
+    /// <param name="onChainAddress">Destination Bitcoin address on the wallet's network.</param>
+    /// <param name="maxFeeSats">Highest fee the caller accepts; <c>null</c> uses the SSP's own quote.</param>
+    /// <param name="exitSpeed">How fast the exit should confirm; the slower, the cheaper (see <see cref="ExitSpeed"/>).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="SparkLeavesNotSpendableException">A requested leaf is not owned or not spendable.</exception>
+    /// <exception cref="FeeExceedsLimitException">The fee would consume the whole amount or exceed the cap.</exception>
+    public static async Task<WithdrawLeavesResult> WithdrawLeavesAsync(
+        this SparkWallet wallet,
+        IReadOnlyCollection<string> leafIds,
+        string onChainAddress,
+        long? maxFeeSats = null,
+        ExitSpeed exitSpeed = ExitSpeed.Fast,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(wallet);
+        ArgumentNullException.ThrowIfNull(leafIds);
+        ArgumentException.ThrowIfNullOrWhiteSpace(onChainAddress);
+        if (leafIds.Count == 0)
+        {
+            throw new ArgumentException("At least one leaf is needed.", nameof(leafIds));
+        }
+
+        if (leafIds.Distinct(StringComparer.Ordinal).Count() != leafIds.Count)
+        {
+            throw new ArgumentException("A leaf is listed twice.", nameof(leafIds));
+        }
+
+        _ = CoopExitValidator.ScriptPubKeyFor(onChainAddress, wallet.Options.Network);
+
+        var spendable = (await wallet.GetSpendableLeavesAsync(ct).ConfigureAwait(false))
+            .ToDictionary(l => l.Id, StringComparer.Ordinal);
+        var missing = leafIds.Where(id => !spendable.ContainsKey(id)).ToList();
+        if (missing.Count > 0)
+        {
+            throw new SparkLeavesNotSpendableException(Operation, missing);
+        }
+
+        var selected = leafIds.Select(id => spendable[id]).ToList();
+        var amountSats = selected.Sum(l => l.ValueSats);
+        var quote = await wallet.GetFeeQuoteAsync(leafIds.ToArray(), onChainAddress, exitSpeed, ct).ConfigureAwait(false);
+        var feeCap = CoopExitValidator.ResolveFeeCap(quote.FeeSats, maxFeeSats, amountSats);
+
+        var exit = await PerformCooperativeExitAsync(
+            wallet, selected, amountSats, feeCap, onChainAddress, exitSpeed, ct).ConfigureAwait(false);
+        return new WithdrawLeavesResult(exit.Txid, amountSats, exit.PayoutSats);
     }
 
     /// <summary>
@@ -136,10 +228,11 @@ public static class WithdrawalService
     public static async Task<WithdrawAllQuote> QuoteWithdrawAllAsync(
         this SparkWallet wallet,
         string onChainAddress,
+        ExitSpeed exitSpeed = ExitSpeed.Fast,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(wallet);
-        var plan = await DrainPlanAsync(wallet, onChainAddress, ct).ConfigureAwait(false);
+        var plan = await DrainPlanAsync(wallet, onChainAddress, exitSpeed, ct).ConfigureAwait(false);
         return new WithdrawAllQuote(
             SpendableSats: plan.SpendableSats,
             QuotedFeeSats: plan.QuotedFeeSats,
@@ -166,6 +259,7 @@ public static class WithdrawalService
     /// <param name="wallet">The Spark wallet.</param>
     /// <param name="onChainAddress">Destination Bitcoin address on the wallet's network.</param>
     /// <param name="maxFeeSats">Highest fee the caller accepts; <c>null</c> uses the SSP's own quote.</param>
+    /// <param name="exitSpeed">How fast the exit should confirm; the slower, the cheaper (see <see cref="ExitSpeed"/>).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="SparkWithdrawalException">Nothing is spendable.</exception>
     /// <exception cref="FeeExceedsLimitException">The fee would consume the whole balance or exceed the cap.</exception>
@@ -173,10 +267,11 @@ public static class WithdrawalService
         this SparkWallet wallet,
         string onChainAddress,
         long? maxFeeSats = null,
+        ExitSpeed exitSpeed = ExitSpeed.Fast,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(wallet);
-        var plan = await DrainPlanAsync(wallet, onChainAddress, ct).ConfigureAwait(false);
+        var plan = await DrainPlanAsync(wallet, onChainAddress, exitSpeed, ct).ConfigureAwait(false);
         if (plan.SpendableSats <= 0)
         {
             throw new SparkWithdrawalException(Operation, "Nothing is spendable: need at least 1 sat, have 0.");
@@ -184,7 +279,7 @@ public static class WithdrawalService
 
         var feeCap = CoopExitValidator.ResolveFeeCap(plan.QuotedFeeSats, maxFeeSats, plan.SpendableSats);
         var exit = await PerformCooperativeExitAsync(
-            wallet, plan.Leaves, plan.SpendableSats, feeCap, onChainAddress, ct).ConfigureAwait(false);
+            wallet, plan.Leaves, plan.SpendableSats, feeCap, onChainAddress, exitSpeed, ct).ConfigureAwait(false);
         return new WithdrawAllResult(
             Txid: exit.Txid,
             SentSats: plan.SpendableSats,
@@ -213,7 +308,8 @@ public static class WithdrawalService
     /// validate the destination, claim what is pending, renew what the coordinator will renew,
     /// and quote the fee for the rest.
     /// </summary>
-    private static async Task<DrainPlan> DrainPlanAsync(SparkWallet wallet, string onChainAddress, CancellationToken ct)
+    private static async Task<DrainPlan> DrainPlanAsync(SparkWallet wallet, string onChainAddress, ExitSpeed exitSpeed,
+        CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(onChainAddress);
         _ = CoopExitValidator.ScriptPubKeyFor(onChainAddress, wallet.Options.Network);
@@ -232,7 +328,8 @@ public static class WithdrawalService
         long quotedFee = 0;
         if (spendable > 0)
         {
-            quotedFee = (await wallet.GetFeeQuoteAsync(leaves.Select(l => l.Id).ToArray(), onChainAddress, ct).ConfigureAwait(false)).FeeSats;
+            quotedFee = (await wallet.GetFeeQuoteAsync(leaves.Select(l => l.Id).ToArray(), onChainAddress, exitSpeed, ct)
+                .ConfigureAwait(false)).FeeSats;
         }
 
         return new DrainPlan(leaves, balance, spendable, quotedFee);
@@ -253,6 +350,7 @@ public static class WithdrawalService
         long amountSats,
         long feeCap,
         string onChainAddress,
+        ExitSpeed exitSpeed,
         CancellationToken ct)
     {
         var options = wallet.Options;
@@ -271,7 +369,7 @@ public static class WithdrawalService
             {
                 ["leaf_external_ids"] = leafIds,
                 ["withdrawal_address"] = onChainAddress,
-                ["exit_speed"] = "FAST",
+                ["exit_speed"] = GraphQLName(exitSpeed),
                 ["withdraw_all"] = true,
                 ["user_outbound_transfer_external_id"] = transferId,
             },
@@ -418,8 +516,8 @@ public static class WithdrawalService
     internal sealed record ConnectorRefund(byte[] Tx, byte[] Sighash);
 
     /// <summary>
-    /// The three connector refunds of one leaf. <see cref="Direct"/> is absent for zero-timelock
-    /// nodes and leaves without a direct node transaction.
+    /// The three connector refunds of one leaf. <see cref="Direct"/> is absent only for a leaf
+    /// without a direct node transaction.
     /// </summary>
     internal sealed record ConnectorRefunds(ConnectorRefund Cpfp, ConnectorRefund? Direct, ConnectorRefund DirectFromCpfp);
 
@@ -427,8 +525,17 @@ public static class WithdrawalService
     /// The leaf's next refund transactions with the connector output appended as a second
     /// input, and their two-input sighashes (BIP-341, prevouts = node output + connector
     /// output). This is what the user signs for a cooperative exit; mirrors the reference SDK's
-    /// <c>createConnectorRefundTxs</c> + <c>signRefundsForCoopExit</c>.
+    /// <c>createConnectorRefundTxs</c> + <c>signRefundsForCoopExit</c>, except for a zero-timelock
+    /// node with a direct node transaction (below).
     /// </summary>
+    /// <remarks>
+    /// A leaf with a direct node transaction gets a direct refund spending it, even when its node
+    /// transaction is at timelock 0, which is what a zero-timelock renewal leaves. The operators'
+    /// cooperative-exit check (<c>validateSendLeafRefundTxs</c>, <c>requireDirectTx</c> set) takes
+    /// both direct refunds or none for such a leaf and requires them, and its connector validation
+    /// has no zero-node rule. Only a claim exempts a zero-timelock node from the direct refund, which
+    /// is what the reference SDK applies here too, so its exit of a renewed root leaf is refused.
+    /// </remarks>
     internal static ConnectorRefunds BuildConnectorRefunds(
         TreeNode node,
         byte[] receiverPubKey,
@@ -438,11 +545,19 @@ public static class WithdrawalService
     {
         var (cpfpSequence, directSequence) = TimelockHelper.ComputeNextSequences(
             node.RefundTx.ToByteArray(), Operation, node.Id);
-        var directNodeTx = TimelockHelper.DirectNodeTxForRefund(node);
+        var directNodeTx = node.DirectTx.IsEmpty ? null : node.DirectTx.ToByteArray();
 
         // The SSP validates all three refund outputs on coop-exit and rejects with
         // "expected value X on output 0" if the standard fee isn't deducted.
-        var trio = TimelockHelper.LeafRefundTrio(node, receiverPubKey, networkStr, cpfpSequence, directSequence);
+        var trio = SparkTxBuilder.BuildRefundTxTrio(
+            cpfpNodeTx: node.NodeTx.ToByteArray(),
+            directNodeTx: directNodeTx,
+            vout: 0,
+            receivingPublicKey: receiverPubKey,
+            network: networkStr,
+            sequence: cpfpSequence,
+            directSequence: directSequence,
+            feeSats: SparkConstants.DefaultRefundFeeSats);
 
         var connectorOutput = connectorTx.OutputAt(connectorVout);
         var connectorTxid = connectorTx.Txid;
