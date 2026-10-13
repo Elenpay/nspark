@@ -102,6 +102,14 @@ internal static class Mutations
                     user_fee { original_value original_unit }
                     l1_broadcast_fee { original_value original_unit }
                 }
+                speed_medium {
+                    user_fee { original_value original_unit }
+                    l1_broadcast_fee { original_value original_unit }
+                }
+                speed_slow {
+                    user_fee { original_value original_unit }
+                    l1_broadcast_fee { original_value original_unit }
+                }
             }
         }
         """;

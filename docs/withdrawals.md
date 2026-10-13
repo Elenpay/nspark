@@ -44,6 +44,22 @@ Console.WriteLine($"Fee: {quote.FeeSats} sats");
 `WithdrawAsync` fetches the same quote internally and uses it as the fee
 bound unless you pass `maxFeeSats`. Show it to the user before confirming.
 
+## Exit speed
+
+Every withdrawal takes an `exitSpeed` (`ExitSpeed.Fast`, the default, `Medium` or
+`Slow`). The SSP quotes each speed separately: the same user fee, plus an L1
+broadcast fee at the fee rate that speed targets, so `Slow` is the cheapest and
+confirms last. Pass the same speed to `GetFeeQuoteAsync` and to the withdrawal,
+which uses it for the fee bound and asks it of the SSP:
+
+```csharp
+var slowFee = await wallet.GetFeeQuoteAsync(leafIds, "bc1q...", ExitSpeed.Slow);
+var exit = await wallet.WithdrawLeavesAsync(leafIds, "bc1q...", exitSpeed: ExitSpeed.Slow);
+```
+
+The leaves stay the wallet's (locked, counted in `SatsBalance.Owned`) until the
+exit transaction confirms, which at `Slow` can take hours when fees run high.
+
 ## Withdraw
 
 ```csharp

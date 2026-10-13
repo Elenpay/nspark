@@ -55,7 +55,9 @@ internal sealed record CoopExitFeeEstimateResponse(
     [property: JsonPropertyName("coop_exit_fee_estimates")] CoopExitFeeEstimateData CoopExitFeeEstimates);
 
 internal sealed record CoopExitFeeEstimateData(
-    [property: JsonPropertyName("speed_fast")] CoopExitSpeedData SpeedFast);
+    [property: JsonPropertyName("speed_fast")] CoopExitSpeedData? SpeedFast,
+    [property: JsonPropertyName("speed_medium")] CoopExitSpeedData? SpeedMedium = null,
+    [property: JsonPropertyName("speed_slow")] CoopExitSpeedData? SpeedSlow = null);
 
 internal sealed record CoopExitSpeedData(
     [property: JsonPropertyName("user_fee")] CoopExitFeeValue UserFee,

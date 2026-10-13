@@ -1023,7 +1023,7 @@ public class WithdrawalTests
         var fee = await _wallet.GetFeeQuoteAsync(
             leaves.Select(l => l.Id).ToArray(),
             "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
-            cts.Token);
+            ct: cts.Token);
 
         // Guard against the alpha.5 unit-mismatch regression: a cooperative exit on mainnet
         // always carries an L1 miner fee that's at least a couple hundred sats. If the quote
@@ -1056,7 +1056,7 @@ public class WithdrawalTests
         var amount = leaves.Sum(l => l.ValueSats);
         var leafIds = leaves.Select(l => l.Id).ToArray();
         var destination = (await _wallet.GetStaticDepositAddressAsync(cts.Token)).Address;
-        var quote = await _wallet.GetFeeQuoteAsync(leafIds, destination, cts.Token);
+        var quote = await _wallet.GetFeeQuoteAsync(leafIds, destination, ct: cts.Token);
         TestContext.Out.WriteLine($"{leaves.Count} leaves, {amount} sats, SSP quote {quote.FeeSats} sats, destination {destination}");
         if (quote.FeeSats >= amount)
         {
@@ -1150,7 +1150,7 @@ public class WithdrawalTests
         var before = await _wallet.GetBalanceAsync(cts.Token);
         TestContext.Out.WriteLine($"Withdrawing {amount} of {before.SatsBalance.Available} available sats to {destination} (fee cap {maxFeeSats?.ToString() ?? "SSP quote"})");
 
-        var txid = await _wallet.WithdrawAsync(destination, amount, maxFeeSats, cts.Token);
+        var txid = await _wallet.WithdrawAsync(destination, amount, maxFeeSats, ct: cts.Token);
 
         Assert.That(txid, Has.Length.EqualTo(64));
         TestContext.Out.WriteLine($"Withdrawal txid: {txid}");
